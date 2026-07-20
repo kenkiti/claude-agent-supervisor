@@ -1,5 +1,11 @@
 # Agent Supervisor
 
+[![Build](https://github.com/kenkiti/claude-agent-supervisor/actions/workflows/release.yml/badge.svg)](https://github.com/kenkiti/claude-agent-supervisor/actions/workflows/release.yml)
+[![Release](https://img.shields.io/github/v/release/kenkiti/claude-agent-supervisor)](https://github.com/kenkiti/claude-agent-supervisor/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%2011-0078D4?logo=windows)](https://github.com/kenkiti/claude-agent-supervisor)
+[![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
+
 **PCの前にいなくても、Claude Codeからの「許可待ち・質問・完了・失敗」に気づける**、Windows用の常駐通知ツールです。
 
 Claude Codeに長時間の作業を任せると、途中でツール実行の許可待ちや`AskUserQuestion`の質問で止まったり、気づかないうちに失敗して終わっていたりします。Agent Supervisorは、WindowsとWSL2の両方のClaude Codeセッションを常時監視し、そうした「人の対応が必要な瞬間」を**Windowsトースト通知とSlack / Discordへ即座に届けます**。
@@ -73,7 +79,7 @@ Webhook URLはWindowsのDPAPI（このWindowsアカウントでのみ復号可�
 
 ## インストールと初回起動
 
-1. `AgentSupervisor.exe`をダウンロードし、任意の場所に置いて起動します。
+1. [Releases](https://github.com/kenkiti/claude-agent-supervisor/releases/latest)から`AgentSupervisor.exe`をダウンロードし、任意の場所に置いて起動します。
 2. 初回起動時にウィザードが動き、以下を自動で行います。
    - `%LOCALAPPDATA%\AgentSupervisor\`配下への本体配置
    - WindowsとWSLのClaude Code検出

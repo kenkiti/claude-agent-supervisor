@@ -175,3 +175,9 @@ dotnet build AgentSupervisor.slnx
 dotnet test AgentSupervisor.slnx --configuration Release
 ./scripts/publish-win-x64.ps1   # self-contained single-file exe を生成
 ```
+
+---
+
+## ライセンス
+
+[MIT License](LICENSE)

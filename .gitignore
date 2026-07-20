@@ -1,0 +1,26 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+
+## Publish output
+publish/
+*.pdb
+
+## IDE
+.vs/
+.vscode/
+*.swp
+
+## OS
+Thumbs.db
+.DS_Store
+
+## Logs and local data (LocalAppData layout is not repo-relative, listed for completeness)
+*.log
+
+## Spike build artifacts (packaged/downloaded, not source)
+node_modules/
+*.exe
+*.blob

@@ -1,0 +1,43 @@
+@page
+@using System.Text.Json
+@using AgentSupervisor.Infrastructure
+@inject PendingQuestionStore Questions
+@{
+    ViewData["Title"] = "Questions";
+    var all = Questions.All();
+    var pending = all.Where(x => x.Status == "pending").ToList();
+    var answered = all.Where(x => x.Status != "pending").ToList();
+}
+<main data-page="questions">
+    <section class="card">
+        <h2>Pending Questions</h2>
+        @foreach (var item in pending)
+        {
+            using var questions = JsonDocument.Parse(item.QuestionsJson);
+            <form method="post" action="/api/v1/questions/@item.Id/answer">
+                <h3>@item.RuntimeId</h3>
+                @for (var i = 0; i < questions.RootElement.GetArrayLength(); i++)
+                {
+                    var question = questions.RootElement[i];
+                    var multi = question.GetProperty("multiSelect").GetBoolean();
+                    var inputType = multi ? "checkbox" : "radio";
+                    <fieldset><legend>@question.GetProperty("question").GetString()</legend>
+                    @foreach (var option in question.GetProperty("options").EnumerateArray())
+                    { <label><input type="@inputType" name="q@i" value="@option.GetProperty("label").GetString()" /> <span>@option.GetProperty("label").GetString() - @option.GetProperty("description").GetString()</span></label> }
+                    <label><span>Other</span><input type="text" name="other@i" /></label></fieldset>
+                }
+                <button class="btn" type="submit">Answer</button>
+            </form>
+        }
+    </section>
+    <section class="card">
+        <h2>Answered Questions</h2>
+        <table class="data-table"><thead><tr><th>Runtime</th><th>Status</th><th>Answers</th><th>Answered</th></tr></thead><tbody>
+        @foreach (var item in answered)
+        {
+            var answerClass = item.Status?.ToLowerInvariant() switch { "answered" => "good", "timed-out" or "timeout" => "critical", _ => "neutral" };
+            <tr><td>@item.RuntimeId</td><td data-status="@item.Status"><span class="status-pill status-@answerClass"><span class="status-dot"></span>@item.Status</span></td><td>@item.AnswersJson</td><td>@item.AnsweredAt</td></tr>
+        }
+        </tbody></table>
+    </section>
+</main>

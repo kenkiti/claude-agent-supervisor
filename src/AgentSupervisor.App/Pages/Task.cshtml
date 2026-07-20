@@ -1,0 +1,37 @@
+@page "{id}"
+@using AgentSupervisor.Core
+@inject AgentSupervisor.Infrastructure.TaskStore TaskStoreService
+@inject AgentSupervisor.Infrastructure.RecoveryHistoryStore RecoveryHistoryStoreService
+@{
+    var id = (string)RouteData.Values["id"]!;
+    ViewData["Title"] = "Task " + id;
+    var task = TaskStoreService.Get(id);
+    var attempts = task is not null ? TaskStoreService.Attempts(id) : Array.Empty<TaskAttemptRecord>();
+    var recoveryHistory = task is not null ? RecoveryHistoryStoreService.ForTask(id) : Array.Empty<AgentSupervisor.Infrastructure.RecoveryHistoryRecord>();
+}
+<main data-page="task-detail">
+    @if (task is null)
+    { <section class="card"><p>Not found.</p></section> }
+    else
+    {
+        var taskClass = task.Status?.ToLowerInvariant() switch { "running" or "succeeded" => "good", "retrying" => "warning", "failed" or "exhausted" or "budget-exceeded" => "critical", _ => "neutral" };
+        <section class="card">
+            <h2>Task @id</h2>
+            <p>Project: <a href="/Tasks?projectId=@task.ProjectId">@task.ProjectId</a></p>
+            <p>Status: <span class="status-pill status-@taskClass" data-status="@task.Status"><span class="status-dot"></span>@task.Status</span></p>
+            <p>Mode: @task.Mode</p><p>Prompt: @task.Prompt</p>
+            <p>Max turns: @task.MaxTurns — Max budget: $@task.MaxBudgetUsd — Timeout: @(task.TimeoutSeconds)s</p>
+            <p>Created: @task.CreatedAt — Updated: @task.UpdatedAt</p>
+        </section>
+        <section class="card"><h2>Attempts</h2><table class="data-table"><thead><tr><th class="num">#</th><th>Status</th><th>Started</th><th>Ended</th><th class="num">Exit code</th><th class="num">Cost</th><th class="num">Turns</th><th>Error</th></tr></thead><tbody>
+        @foreach (var a in attempts)
+        {
+            var attemptClass = a.Status?.ToLowerInvariant() switch { "running" or "succeeded" => "good", "retrying" => "warning", "failed" or "exhausted" or "budget-exceeded" => "critical", _ => "neutral" };
+            <tr><td class="num">@a.AttemptNumber</td><td data-status="@a.Status"><span class="status-pill status-@attemptClass"><span class="status-dot"></span>@a.Status</span></td><td>@a.StartedAt</td><td>@a.EndedAt</td><td class="num">@a.ExitCode</td><td class="num">@a.CostUsd</td><td class="num">@a.TurnsUsed</td><td>@a.Error</td></tr>
+        }
+        </tbody></table></section>
+        <section class="card"><h2>Recovery History</h2><table class="data-table"><thead><tr><th>Decision</th><th>Failure category</th><th>Fingerprint</th><th>Reason</th><th>Created</th></tr></thead><tbody>
+        @foreach (var entry in recoveryHistory) { <tr><td>@entry.Decision</td><td>@entry.FailureCategory</td><td>@entry.Fingerprint</td><td>@entry.Reason</td><td>@entry.CreatedAt</td></tr> }
+        </tbody></table><p>Cancel via <code>POST /api/v1/tasks/@task.Id/cancel</code>.</p></section>
+    }
+</main>

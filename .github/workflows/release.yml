@@ -1,0 +1,37 @@
+name: build-release
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+  pull_request:
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '10.0.x' }
+      - run: dotnet test AgentSupervisor.slnx --configuration Release
+      - name: Install Playwright Chromium
+        shell: pwsh
+        run: pwsh tests/AgentSupervisor.UiTests/bin/Release/net10.0-windows/playwright.ps1 install chromium
+      - name: UI smoke tests
+        shell: pwsh
+        run: ./scripts/run-ui-tests.ps1
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: windows-latest
+    permissions: { contents: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '10.0.x' }
+      - run: dotnet publish src/AgentSupervisor.App/AgentSupervisor.App.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o artifact
+      - name: Optional Authenticode signing hook
+        shell: pwsh
+        run: if ($env:CODE_SIGN_CERTIFICATE) { Write-Host 'Signing extension point configured; signing intentionally delegated.' } else { Write-Host 'Code signing not configured; leaving artifact unsigned.' }
+      - shell: pwsh
+        run: Get-FileHash artifact/AgentSupervisor.App.exe -Algorithm SHA256 | ForEach-Object { "$($_.Hash)  AgentSupervisor.App.exe" } | Set-Content artifact/SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with: { files: "artifact/AgentSupervisor.App.exe\nartifact/SHA256SUMS.txt" }

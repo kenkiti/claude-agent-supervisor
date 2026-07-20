@@ -1,0 +1,7 @@
+{
+  "capture-timestamp": "2026-07-18",
+  "claude-cli-version": "2.1.214 (Claude Code)",
+  "command": "claude agents --json --all",
+  "result": [{"pid":22568,"cwd":"D:\\Github\\claude-agent-supervisor","kind":"interactive","startedAt":1784380168552,"sessionId":"7a9c8689-7d26-4639-a744-1acbe57776b4","name":"claude-agent-supervisor-ab","status":"busy"}],
+  "notes": ["No background sessions present.","state and waitingFor absent from real output."]
+}

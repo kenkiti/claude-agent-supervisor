@@ -1,0 +1,22 @@
+@page
+@using AgentSupervisor.Core
+@inject AgentSupervisor.Infrastructure.TaskStore TaskStoreService
+@{
+    ViewData["Title"] = "Tasks";
+    var projectId = Request.Query["projectId"].FirstOrDefault();
+    var tasks = TaskStoreService.All();
+    if (!string.IsNullOrEmpty(projectId)) tasks = tasks.Where(t => t.ProjectId == projectId).ToList();
+}
+<main data-page="tasks">
+    <section class="card">
+        <h2>Tasks@(projectId is not null ? " — " + projectId : "")</h2>
+        <table class="data-table"><thead><tr><th>Id</th><th>Project</th><th>Status</th><th>Mode</th><th>Prompt</th><th>Updated</th></tr></thead><tbody>
+        @foreach (var t in tasks)
+        {
+            var taskClass = t.Status?.ToLowerInvariant() switch { "running" or "succeeded" => "good", "retrying" => "warning", "failed" or "exhausted" or "budget-exceeded" => "critical", _ => "neutral" };
+            <tr><td><a href="/Task/@t.Id">@t.Id</a></td><td><a href="/Tasks?projectId=@t.ProjectId">@t.ProjectId</a></td><td data-status="@t.Status"><span class="status-pill status-@taskClass"><span class="status-dot"></span>@t.Status</span></td><td>@t.Mode</td><td>@t.Prompt</td><td>@t.UpdatedAt</td></tr>
+        }
+        </tbody></table>
+    </section>
+    <p>Submit a new task via <code>POST /api/v1/tasks</code> with a JSON body like <code>{"projectId":"...","prompt":"...","mode":"batch-print"}</code>.</p>
+</main>

@@ -1,0 +1,28 @@
+@page
+@using AgentSupervisor.Core
+@inject AgentSupervisor.Infrastructure.SessionSnapshotStore Store
+@inject AgentSupervisor.Infrastructure.HookEventStore HookStore
+@{
+    ViewData["Title"] = "Sessions";
+    var sessions = Store.ReadLatest();
+    var observeOnly = HookStore.ReadObserveOnly(sessions.Select(s => s.Id).ToHashSet());
+}
+<main data-page="sessions">
+    <section class="card">
+        <h2>Sessions</h2>
+        <table class="data-table"><thead><tr><th>Project</th><th>Runtime</th><th>Lifecycle</th><th>Updated</th><th>Source</th><th>Confidence</th></tr></thead><tbody id="sessions-body">
+        @foreach (var session in sessions)
+        {
+            var lifecycleClass = session.LifecycleState?.ToLowerInvariant() switch { "running" => "good", "stopped" => "warning", _ => "neutral" };
+            <tr><td>@session.Project</td><td><span class="badge-runtime" data-runtime="@session.Runtime">@session.Runtime</span></td><td data-status="@session.LifecycleState"><span class="status-pill status-@lifecycleClass"><span class="status-dot"></span>@session.LifecycleState</span></td><td>@session.UpdatedAt</td><td>@session.Source</td><td>@session.Confidence</td></tr>
+        }
+        </tbody></table>
+    </section>
+    <section class="card">
+        <h2>Observe-only sessions <small>(Hooks only, not in Agent View)</small></h2>
+        <table class="data-table"><thead><tr><th>Session</th><th>Runtime</th><th>Last event</th><th>Occurred</th></tr></thead><tbody id="observe-only-body">
+        @foreach (var s in observeOnly)
+        { <tr><td>@s.SessionId</td><td><span class="badge-runtime" data-runtime="@s.RuntimeId">@s.RuntimeId</span></td><td>@s.LastEventName</td><td>@s.OccurredAt</td></tr> }
+        </tbody></table>
+    </section>
+</main>

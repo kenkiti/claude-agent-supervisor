@@ -1,0 +1,22 @@
+@page
+@using AgentSupervisor.Core
+@inject AgentSupervisor.Infrastructure.ProjectRegistryStore Registry
+@{
+    ViewData["Title"] = "Projects";
+    var projects = Registry.Projects();
+    var runtimes = Registry.Runtimes().ToDictionary(r => r.Id);
+}
+<main data-page="projects">
+    <section class="card">
+        <h2>Project Registry</h2>
+        <table class="data-table"><thead><tr><th>Id</th><th>Cwd</th><th>Runtime</th><th class="num">Max parallel</th><th>Default mode</th><th>Tasks</th></tr></thead><tbody>
+        @foreach (var p in projects)
+        {
+            var rt = runtimes.TryGetValue(p.RuntimeId, out var r) ? r : null;
+            var runtime = rt is not null ? rt.Type + (rt.Distribution is not null ? ":" + rt.Distribution : "") : p.RuntimeId;
+            <tr><td>@p.Id</td><td>@p.Cwd</td><td><span class="badge-runtime" data-runtime="@runtime">@runtime</span></td><td class="num">@p.MaxParallel</td><td>@p.DefaultMode</td><td><a href="/Tasks?projectId=@p.Id">View tasks</a></td></tr>
+        }
+        </tbody></table>
+    </section>
+    <p>Register a project via <code>POST /api/v1/projects</code> and a runtime via <code>POST /api/v1/runtimes</code>. Submit a task for a project via <code>POST /api/v1/tasks</code> with a JSON body like <code>{"projectId":"...","prompt":"...","mode":"batch-print"}</code>.</p>
+</main>

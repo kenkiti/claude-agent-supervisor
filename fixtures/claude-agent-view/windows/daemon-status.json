@@ -1,0 +1,1 @@
+{"capture-timestamp":"2026-07-18","claude-cli-version":"2.1.214 (Claude Code)","command":"claude daemon status","exitCode":1,"stdout":"not running","sockDir":"\\\\.\\pipe\\cc-daemon-*","control":"unreachable (connect ENOENT \\\\.\\pipe\\cc-daemon-*-control)","workers":0,"roster":"absent","log":"absent","notes":["daemon is undocumented/hidden from top-level claude --help"]}

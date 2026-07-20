@@ -1,0 +1,6 @@
+{
+  "capture-timestamp": "sample-shape-only",
+  "command": "claude agents --json --all",
+  "result": [{"pid": 4101, "cwd": "/workspace/sample", "kind": "interactive", "startedAt": "2026-07-18T00:00:00Z", "sessionId": "wsl-sample-1", "name": "sample", "status": "idle", "state": "waiting", "waitingFor": "input"}],
+  "notes": ["Hand-authored shape sample; WSL2 Ubuntu was unavailable during Phase 0."]
+}

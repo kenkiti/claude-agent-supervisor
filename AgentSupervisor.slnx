@@ -1,0 +1,10 @@
+<Solution>
+  <Project Path="src/AgentSupervisor.App/AgentSupervisor.App.csproj" />
+  <Project Path="src/AgentSupervisor.Core/AgentSupervisor.Core.csproj" />
+  <Project Path="src/AgentSupervisor.Infrastructure/AgentSupervisor.Infrastructure.csproj" />
+  <Project Path="src/AgentSupervisor.SdkBridge/AgentSupervisor.SdkBridge.csproj" />
+  <Project Path="tests/AgentSupervisor.UnitTests/AgentSupervisor.UnitTests.csproj" />
+  <Project Path="tests/AgentSupervisor.IntegrationTests/AgentSupervisor.IntegrationTests.csproj" />
+  <Project Path="tests/AgentSupervisor.ContractTests/AgentSupervisor.ContractTests.csproj" />
+  <Project Path="tests/AgentSupervisor.UiTests/AgentSupervisor.UiTests.csproj" />
+</Solution>

@@ -1,0 +1,1 @@
+{"capture-timestamp":"2026-07-18","claude-cli-version":"2.1.214 (Claude Code)","command":"claude auth status","result":{"loggedIn":true,"authMethod":"claude.ai","apiProvider":"firstParty","email":"<REDACTED>","orgId":"<REDACTED>","orgName":"<REDACTED>","subscriptionType":"pro"}}

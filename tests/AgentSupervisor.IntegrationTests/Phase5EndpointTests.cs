@@ -2,7 +2,10 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AgentSupervisor.Core;
+using AgentSupervisor.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Xunit;
 
 namespace AgentSupervisor.IntegrationTests;
@@ -13,12 +16,49 @@ namespace AgentSupervisor.IntegrationTests;
 // machine. Using a made-up runtime id makes TaskQueue's "rt is null" branch fail the task
 // immediately and safely, which still exercises the full submit -> queue -> persisted-outcome
 // path end-to-end over HTTP.
+//
+// The app's own RuntimePoller hosted service still runs against whatever IClaudeRuntime
+// instances are registered, though. Program.cs normally wires that up to the *real* Windows and
+// WSL runtimes (spawning literal `claude`/`wsl.exe` processes every ~10s). That is fine on a dev
+// machine with Claude Code and WSL actually installed and configured, but on CI (no `claude` CLI,
+// and `wsl.exe` present but pointed at a distro name -- "Ubuntu" -- that doesn't exist) those
+// calls can take many seconds to fail, which was intermittently starving/delaying the unrelated
+// TaskQueue background service enough to blow this class's own polling deadlines (reproduced
+// locally by hiding `claude` from PATH). Replace the real runtimes with instant fakes so this
+// test host never depends on external processes being present at all.
 public sealed class Phase5EndpointTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private readonly HttpClient _client;
 
-    public Phase5EndpointTests(WebApplicationFactory<Program> factory) => _client = factory.CreateClient();
+    private sealed class InstantFakeRuntime : IClaudeRuntime
+    {
+        public required string RuntimeId { get; init; }
+        public Task<bool> HealthCheckAsync(CancellationToken ct = default) => Task.FromResult(true);
+        public Task<IReadOnlyList<ClaudeAgent>> ListAgentsAsync(bool includeAll, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<ClaudeAgent>>(Array.Empty<ClaudeAgent>());
+        public Task<RuntimeCommandResult> GetDaemonStatusAsync(CancellationToken ct = default) => Task.FromResult(new RuntimeCommandResult("daemon", 0, "", ""));
+        public Task<RuntimeCommandResult> GetAuthStatusAsync(CancellationToken ct = default) => Task.FromResult(new RuntimeCommandResult("auth", 0, "", ""));
+        public Task<RuntimeCommandResult> GetGitStatusAsync(string cwd, CancellationToken ct = default) => Task.FromResult(new RuntimeCommandResult("git", 0, "", ""));
+        public Task<StartedProcessHandle> StartBackgroundAsync(string cwd, string prompt, CancellationToken ct = default) => Task.FromResult(new StartedProcessHandle("job", 1));
+        public Task<StartedProcessHandle> StartBatchAsync(string cwd, string prompt, int maxTurns, decimal maxBudgetUsd, CancellationToken ct = default) => Task.FromResult(new StartedProcessHandle("job", 1));
+        public Task<StartedProcessHandle> ResumeBatchAsync(string cwd, string sessionId, string prompt, int maxTurns, decimal maxBudgetUsd, CancellationToken ct = default) => Task.FromResult(new StartedProcessHandle("job", 1));
+        public Task<StartedProcessHandle> RespawnBackgroundAsync(string cwd, string? jobId, string prompt, CancellationToken ct = default) => Task.FromResult(new StartedProcessHandle("job", 1));
+        public Task<int?> WaitForExitAsync(string jobId, TimeSpan timeout, CancellationToken ct = default) => Task.FromResult<int?>(0);
+        public Task StopAsync(string jobId, CancellationToken ct = default) => Task.CompletedTask;
+        public string GetStdoutExcerpt(string jobId) => "";
+        public string GetStderrExcerpt(string jobId) => "";
+    }
+
+    public Phase5EndpointTests(WebApplicationFactory<Program> factory)
+    {
+        var customized = factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+        {
+            services.RemoveAll<IClaudeRuntime>();
+            services.AddSingleton<IClaudeRuntime>(new InstantFakeRuntime { RuntimeId = "windows" });
+            services.AddSingleton<IClaudeRuntime>(new InstantFakeRuntime { RuntimeId = "wsl:Ubuntu" });
+        }));
+        _client = customized.CreateClient();
+    }
 
     private async Task<(string RuntimeId, string ProjectId)> RegisterProjectAsync()
     {
@@ -83,11 +123,8 @@ public sealed class Phase5EndpointTests : IClassFixture<WebApplicationFactory<Pr
         var submitResponse = await _client.PostAsJsonAsync("/api/v1/tasks", new { projectId, prompt = "say hi", mode = "batch-print" });
         var created = await submitResponse.Content.ReadFromJsonAsync<TaskRecord>(Json);
 
-        // 10s was marginal on GitHub Actions' shared Windows runners -- this test passed reliably
-        // locally and on some CI runs but timed out on others with status still "queued" (the
-        // TaskQueue background service just hadn't gotten to it yet under runner load variance).
         string? status = null;
-        var deadline = DateTimeOffset.UtcNow.AddSeconds(25);
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
         while (DateTimeOffset.UtcNow < deadline)
         {
             var detail = await _client.GetFromJsonAsync<JsonElement>($"/api/v1/tasks/{created!.Id}", Json);

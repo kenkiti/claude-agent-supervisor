@@ -1,4 +1,8 @@
 $ErrorActionPreference = 'Stop'
+# No `claude` CLI is installed on CI/dev-smoke-test hosts, so RuntimePoller's first poll would
+# otherwise see an authentication-failure snapshot and self-exit the app (default ON behavior)
+# before Playwright connects. See AppBehaviorSettingsStore.ExitOnAuthFailure.
+$env:AGENTSUPERVISOR_DISABLE_AUTH_EXIT = '1'
 $app = Start-Process dotnet -ArgumentList 'run','--project','src/AgentSupervisor.App/AgentSupervisor.App.csproj','--no-launch-profile' -PassThru
 try {
   $ready = $false

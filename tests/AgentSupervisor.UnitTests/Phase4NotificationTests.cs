@@ -22,8 +22,97 @@ public sealed class FakeHttpMessageHandler : HttpMessageHandler
     }
 }
 
+
 public sealed class Phase4NotificationTests
 {
+    [Fact]
+    public void Enqueue_input_needed_right_after_task_completed_same_session_is_suppressed()
+    {
+        var file = NewTempDb();
+        try
+        {
+            var cs = "Data Source=" + file;
+            new SqliteMigrationRunner().Migrate(cs);
+            var outbox = new SqliteNotificationOutbox(cs, Array.Empty<INotificationChannel>());
+            outbox.Enqueue(new AlertCandidate("task-completed", "info", "windows", "session-1", 1, "{}", new[] { "toast" }), 0);
+            outbox.Enqueue(new AlertCandidate("input-needed", "info", "windows", "session-1", 2, "{}", new[] { "toast" }), 0);
+
+            using var connection = new Microsoft.Data.Sqlite.SqliteConnection(cs);
+            connection.Open();
+            using var countCommand = connection.CreateCommand();
+            countCommand.CommandText = "SELECT COUNT(*) FROM notification_outbox";
+            Assert.Equal(1L, Convert.ToInt64(countCommand.ExecuteScalar()));
+            using var typeCommand = connection.CreateCommand();
+            typeCommand.CommandText = "SELECT notification_type FROM notification_outbox";
+            Assert.Equal("task-completed", Convert.ToString(typeCommand.ExecuteScalar()));
+        }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            if (File.Exists(file)) File.Delete(file);
+        }
+    }
+
+    [Fact]
+    public void Enqueue_input_needed_for_different_session_is_not_suppressed()
+    {
+        var file = NewTempDb();
+        try
+        {
+            var cs = "Data Source=" + file;
+            new SqliteMigrationRunner().Migrate(cs);
+            var outbox = new SqliteNotificationOutbox(cs, Array.Empty<INotificationChannel>());
+            outbox.Enqueue(new AlertCandidate("task-completed", "info", "windows", "session-1", 1, "{}", new[] { "toast" }), 0);
+            outbox.Enqueue(new AlertCandidate("input-needed", "info", "windows", "session-2", 2, "{}", new[] { "toast" }), 0);
+
+            using var connection = new Microsoft.Data.Sqlite.SqliteConnection(cs);
+            connection.Open();
+            using var countCommand = connection.CreateCommand();
+            countCommand.CommandText = "SELECT COUNT(*) FROM notification_outbox";
+            Assert.Equal(2L, Convert.ToInt64(countCommand.ExecuteScalar()));
+        }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            if (File.Exists(file)) File.Delete(file);
+        }
+    }
+
+    [Fact]
+    public void Enqueue_input_needed_outside_suppression_window_is_not_suppressed()
+    {
+        var file = NewTempDb();
+        try
+        {
+            var cs = "Data Source=" + file;
+            new SqliteMigrationRunner().Migrate(cs);
+            var outbox = new SqliteNotificationOutbox(cs, Array.Empty<INotificationChannel>());
+            outbox.Enqueue(new AlertCandidate("task-completed", "info", "windows", "session-1", 1, "{}", new[] { "toast" }), 0);
+
+            using (var connection = new Microsoft.Data.Sqlite.SqliteConnection(cs))
+            {
+                connection.Open();
+                using var updateCommand = connection.CreateCommand();
+                updateCommand.CommandText = "UPDATE notification_outbox SET created_at=$createdAt WHERE notification_type='task-completed'";
+                updateCommand.Parameters.AddWithValue("$createdAt", DateTimeOffset.UtcNow.AddSeconds(-120).ToString("O"));
+                updateCommand.ExecuteNonQuery();
+            }
+
+            outbox.Enqueue(new AlertCandidate("input-needed", "info", "windows", "session-1", 2, "{}", new[] { "toast" }), 0);
+
+            using var countConnection = new Microsoft.Data.Sqlite.SqliteConnection(cs);
+            countConnection.Open();
+            using var countCommand = countConnection.CreateCommand();
+            countCommand.CommandText = "SELECT COUNT(*) FROM notification_outbox";
+            Assert.Equal(2L, Convert.ToInt64(countCommand.ExecuteScalar()));
+        }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            if (File.Exists(file)) File.Delete(file);
+        }
+    }
+
     private static AlertCandidate SampleCandidate(string channel = "discord") =>
         new("permission-wait", "warning", "windows", "session-1", 1, "{}", new[] { channel });
 

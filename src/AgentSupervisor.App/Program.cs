@@ -61,6 +61,7 @@ builder.Services.AddSingleton<DiagnosticsExportService>();
 builder.Services.AddSingleton<ITaskScheduler, WindowsTaskScheduler>();
 builder.Services.AddHostedService<LogRotationWorker>();
 builder.Services.AddSingleton<IProcessRunner, ProcessRunner>();
+builder.Services.AddSingleton<GitRemoteUrlResolver>();
 builder.Services.AddSingleton<IClaudeRuntime, WindowsClaudeRuntime>();
 var wslClaudeCommand = ResolveWslClaudeCommand(wslDistro);
 builder.Services.AddSingleton<IClaudeRuntime>(s => new WslClaudeRuntime(s.GetRequiredService<IProcessRunner>(), wslDistro, wslClaudeCommand));
@@ -102,7 +103,10 @@ static System.Drawing.Icon LoadApplicationIcon()
     }
 }
 builder.Services.AddSingleton<AlertEngine>();
-builder.Services.AddSingleton<INotificationOutbox>(s => new SqliteNotificationOutbox($"Data Source={Path.Combine(layout.Data, "agentsupervisor.db")}", s.GetServices<INotificationChannel>()));
+builder.Services.AddSingleton(new NotificationChannelSettingsStore($"Data Source={Path.Combine(layout.Data, "agentsupervisor.db")}"));
+builder.Services.AddSingleton(new AppBehaviorSettingsStore($"Data Source={Path.Combine(layout.Data, "agentsupervisor.db")}"));
+builder.Services.AddSingleton<AppShutdownCoordinator>();
+builder.Services.AddSingleton<INotificationOutbox>(s => new SqliteNotificationOutbox($"Data Source={Path.Combine(layout.Data, "agentsupervisor.db")}", s.GetServices<INotificationChannel>(), channelId => s.GetRequiredService<NotificationChannelSettingsStore>().IsEnabled(channelId)));
 builder.Services.AddHostedService<NotificationWorker>();
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<RuntimePoller>();
@@ -153,7 +157,20 @@ app.MapPost("/api/v1/notifications/test/{channel}", async (string channel, IServ
     await target.SendTestAsync(ct);
     return Results.Ok(new { channel = target.Id });
 });
-app.MapGet("/api/v1/notifications/channels", (WebhookSecretStore secrets) => Results.Ok(new[] { "discord", "slack" }.Select(id => new { id, configured = secrets.Get(id) is not null, maskedSuffix = secrets.GetMaskedSuffix(id) })));
+app.MapGet("/api/v1/notifications/channels", (WebhookSecretStore secrets, NotificationChannelSettingsStore toggles) => Results.Ok(new[] { "discord", "slack" }.Select(id => new { id, configured = secrets.Get(id) is not null, maskedSuffix = secrets.GetMaskedSuffix(id), enabled = toggles.IsEnabled(id) })));
+
+app.MapPost("/api/v1/notifications/channels/{channel}/enabled", (string channel, EnabledSubmission body, NotificationChannelSettingsStore toggles) =>
+{
+    if (channel is not "discord" and not "slack") return Results.NotFound();
+    toggles.SetEnabled(channel, body.Enabled);
+    return Results.Ok(new { id = channel, enabled = body.Enabled });
+});
+app.MapGet("/api/v1/settings/exit-on-auth-failure", (AppBehaviorSettingsStore behavior) => Results.Ok(new { enabled = behavior.ExitOnAuthFailure }));
+app.MapPost("/api/v1/settings/exit-on-auth-failure", (EnabledSubmission body, AppBehaviorSettingsStore behavior) =>
+{
+    behavior.SetExitOnAuthFailure(body.Enabled);
+    return Results.Ok(new { enabled = body.Enabled });
+});
 app.MapPost("/api/v1/notifications/channels/{channel}", async (string channel, HttpRequest request, WebhookSecretStore secrets) =>
 {
     if (channel is not ("discord" or "slack")) return Results.NotFound();
@@ -169,11 +186,18 @@ app.MapRazorPages();
 if (WindowsFormsApplicationSupported())
 {
     await app.StartAsync();
-    using var tray = new TrayHost(app.Services.GetRequiredService<NotifyIcon>(), onExit: () =>
+    Action exitAction = () =>
     {
         _ = app.StopAsync();
         Application.Exit();
-    });
+    };
+    app.Services.GetRequiredService<AppShutdownCoordinator>().ExitAction = exitAction;
+    var boundUrl = app.Services.GetRequiredService<Microsoft.AspNetCore.Hosting.Server.IServer>()
+        .Features.Get<Microsoft.AspNetCore.Hosting.Server.Features.IServerAddressesFeature>()
+        ?.Addresses.FirstOrDefault() ?? $"http://127.0.0.1:{port}";
+    using var tray = new TrayHost(app.Services.GetRequiredService<NotifyIcon>(),
+        onExit: exitAction,
+        onOpenDashboard: () => Process.Start(new ProcessStartInfo(boundUrl) { UseShellExecute = true }));
     Application.Run();
     await app.StopAsync();
 }

@@ -8,6 +8,20 @@ namespace AgentSupervisor.UnitTests;
 public sealed class NotificationTextTests
 {
     [Fact]
+    public void ExtractMessage_reads_last_assistant_message_from_stop_hook()
+    {
+        var candidate = new AlertCandidate(
+            "task-completed",
+            "info",
+            "runtime",
+            null,
+            0,
+            """{"hook_event_name":"Stop","last_assistant_message":"some completion text","stop_hook_active":false}""",
+            new[] { "windows" });
+
+        Assert.Equal("some completion text", NotificationText.ExtractMessage(candidate));
+    }
+    [Fact]
     public void Label_UsesJapaneseLabelAndFallsBackToRawId()
     {
         Assert.Equal("タスクが完了しました", NotificationText.Label("task-completed"));

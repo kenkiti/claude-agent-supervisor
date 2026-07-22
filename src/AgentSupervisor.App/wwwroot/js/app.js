@@ -89,7 +89,32 @@
             const input = document.getElementById(channel + '-webhook-input');
             const saveButton = document.getElementById(channel + '-save');
             const testButton = document.getElementById(channel + '-test');
-            const message = document.getElementById(channel + '-message');
+        const message = document.getElementById(channel + '-message');
+        const toggleButton = document.getElementById(channel + '-toggle');
+
+        if (toggleButton) {
+            toggleButton.addEventListener('click', async () => {
+                const current = toggleButton.dataset.enabled === 'true';
+                toggleButton.disabled = true;
+                try {
+                    const response = await fetch('/api/v1/notifications/channels/' + channel + '/enabled', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ enabled: !current })
+                    });
+                    if (!response.ok) throw new Error('toggle failed');
+                    const enabled = !current;
+                    toggleButton.dataset.enabled = enabled ? 'true' : 'false';
+                    toggleButton.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+                    toggleButton.textContent = enabled ? '通知ON' : '通知OFF';
+                    showMessage(enabled ? '通知をONにしました' : '通知をOFFにしました', 'good');
+                } catch {
+                    showMessage('切り替えに失敗しました', 'critical');
+                } finally {
+                    toggleButton.disabled = false;
+                }
+            });
+        }
             const status = document.getElementById(channel + '-status');
             const statusLabel = document.getElementById(channel + '-status-label');
             const suffix = document.getElementById(channel + '-suffix');
@@ -148,5 +173,27 @@
             });
             updateSaveState();
         });
+        const exitOnAuthFailureToggle = document.getElementById('exit-on-auth-failure-toggle');
+        if (exitOnAuthFailureToggle) {
+            exitOnAuthFailureToggle.addEventListener('click', async () => {
+                const current = exitOnAuthFailureToggle.dataset.enabled === 'true';
+                exitOnAuthFailureToggle.disabled = true;
+                try {
+                    const response = await fetch('/api/v1/settings/exit-on-auth-failure', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ enabled: !current })
+                    });
+                    if (!response.ok) throw new Error('toggle failed');
+                    const enabled = !current;
+                    exitOnAuthFailureToggle.dataset.enabled = enabled ? 'true' : 'false';
+                    exitOnAuthFailureToggle.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+                    exitOnAuthFailureToggle.textContent = '認証失敗時にアプリを自動終了する: ' + (enabled ? 'ON' : 'OFF');
+                } catch {
+                } finally {
+                    exitOnAuthFailureToggle.disabled = false;
+                }
+            });
+        }
     }
 })();

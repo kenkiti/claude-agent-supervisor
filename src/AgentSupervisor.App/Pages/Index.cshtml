@@ -4,8 +4,10 @@
 @inject AgentSupervisor.Infrastructure.HookEventStore HookStore
 @{
     ViewData["Title"] = "Sessions";
-    var sessions = Store.ReadLatest();
-    var observeOnly = HookStore.ReadObserveOnly(sessions.Select(s => s.Id).ToHashSet());
+    var sessions = Store.ReadLatest().Where(s => s.LifecycleState == "running").ToList();
+    var observeOnly = HookStore.ReadObserveOnly(sessions.Select(s => s.Id).ToHashSet())
+        .Where(s => s.LastEventName != "Stop")
+        .ToList();
 }
 <main data-page="sessions">
     <section class="card">

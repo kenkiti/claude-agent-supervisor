@@ -1,17 +1,22 @@
 @page
 @using AgentSupervisor.Infrastructure
 @inject WebhookSecretStore Secrets
+@inject NotificationChannelSettingsStore Toggles
+@inject AppBehaviorSettingsStore Behavior
 @{
     ViewData["Title"] = "Settings";
     var discordSuffix = Secrets.GetMaskedSuffix("discord");
     var slackSuffix = Secrets.GetMaskedSuffix("slack");
+    var discordEnabled = Toggles.IsEnabled("discord");
+    var slackEnabled = Toggles.IsEnabled("slack");
+    var exitOnAuthFailureEnabled = Behavior.ExitOnAuthFailure;
 }
 <main data-page="settings">
     <section class="card settings-card" data-channel="discord">
         <div class="settings-heading"><h2>Discord</h2><span id="discord-status" class="status-pill status-@(discordSuffix is not null ? "good" : "neutral")"><span class="status-dot"></span><span id="discord-status-label">@(discordSuffix is not null ? "設定済み" : "未設定")</span></span>@if (discordSuffix is not null) { <code id="discord-suffix">@discordSuffix</code> } else { <code id="discord-suffix" hidden></code> }</div>
         <label for="discord-webhook-input">Webhook URL</label>
         <div class="field"><input id="discord-webhook-input" type="password" placeholder="https://discord.com/api/webhooks/..." autocomplete="off" /><button class="icon-btn" type="button" data-action="toggle-visibility" aria-label="Discord Webhook URLを表示"><span aria-hidden="true">◉</span></button></div>
-        <div class="settings-actions"><button id="discord-save" class="btn" type="button" data-action="save">保存</button><button id="discord-test" class="btn-secondary" type="button" data-action="test" @(discordSuffix is null ? "disabled" : null)>テスト送信</button></div>
+        <div class="settings-actions"><button id="discord-toggle" class="btn-secondary" type="button" data-action="toggle-enabled" data-enabled="@(discordEnabled ? "true" : "false")" aria-pressed="@(discordEnabled ? "true" : "false")">@(discordEnabled ? "通知ON" : "通知OFF")</button><button id="discord-save" class="btn" type="button" data-action="save">保存</button><button id="discord-test" class="btn-secondary" type="button" data-action="test" @(discordSuffix is null ? "disabled" : null)>テスト送信</button></div>
         <div id="discord-message" class="form-message" aria-live="polite"></div>
         <p class="settings-help"><a href="https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks" target="_blank" rel="noopener noreferrer">Webhookの取得方法</a></p>
     </section>
@@ -19,8 +24,15 @@
         <div class="settings-heading"><h2>Slack</h2><span id="slack-status" class="status-pill status-@(slackSuffix is not null ? "good" : "neutral")"><span class="status-dot"></span><span id="slack-status-label">@(slackSuffix is not null ? "設定済み" : "未設定")</span></span>@if (slackSuffix is not null) { <code id="slack-suffix">@slackSuffix</code> } else { <code id="slack-suffix" hidden></code> }</div>
         <label for="slack-webhook-input">Webhook URL</label>
         <div class="field"><input id="slack-webhook-input" type="password" placeholder="https://hooks.slack.com/services/..." autocomplete="off" /><button class="icon-btn" type="button" data-action="toggle-visibility" aria-label="Slack Webhook URLを表示"><span aria-hidden="true">◉</span></button></div>
-        <div class="settings-actions"><button id="slack-save" class="btn" type="button" data-action="save">保存</button><button id="slack-test" class="btn-secondary" type="button" data-action="test" @(slackSuffix is null ? "disabled" : null)>テスト送信</button></div>
+        <div class="settings-actions"><button id="slack-toggle" class="btn-secondary" type="button" data-action="toggle-enabled" data-enabled="@(slackEnabled ? "true" : "false")" aria-pressed="@(slackEnabled ? "true" : "false")">@(slackEnabled ? "通知ON" : "通知OFF")</button><button id="slack-save" class="btn" type="button" data-action="save">保存</button><button id="slack-test" class="btn-secondary" type="button" data-action="test" @(slackSuffix is null ? "disabled" : null)>テスト送信</button></div>
         <div id="slack-message" class="form-message" aria-live="polite"></div>
         <p class="settings-help"><a href="https://api.slack.com/messaging/webhooks" target="_blank" rel="noopener noreferrer">Webhookの取得方法</a></p>
+    </section>
+    <section class="card settings-card">
+        <div class="settings-heading"><h2>アプリの動作</h2></div>
+        <div class="settings-actions">
+            <button id="exit-on-auth-failure-toggle" class="btn-secondary" type="button" data-enabled="@(exitOnAuthFailureEnabled ? "true" : "false")" aria-pressed="@(exitOnAuthFailureEnabled ? "true" : "false")">認証失敗時にアプリを自動終了する: @(exitOnAuthFailureEnabled ? "ON" : "OFF")</button>
+        </div>
+        <p class="settings-help">Windows/WSLいずれかのRuntimeでClaude CLIの認証エラー(ログアウト・トークン失効)を検知すると、AgentSupervisorを自動的に終了します。</p>
     </section>
 </main>

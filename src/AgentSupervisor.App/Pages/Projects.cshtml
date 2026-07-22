@@ -1,20 +1,30 @@
 @page
 @using AgentSupervisor.Core
 @inject AgentSupervisor.Infrastructure.ProjectRegistryStore Registry
+@inject AgentSupervisor.Infrastructure.GitRemoteUrlResolver GitRemoteUrl
 @{
     ViewData["Title"] = "Projects";
     var projects = Registry.Projects();
     var runtimes = Registry.Runtimes().ToDictionary(r => r.Id);
+    var repoUrls = new Dictionary<string, string?>();
+    foreach (var p in projects)
+    {
+        if (runtimes.TryGetValue(p.RuntimeId, out var rt))
+        {
+            repoUrls[p.Id] = await GitRemoteUrl.ResolveAsync(p.Cwd, rt);
+        }
+    }
 }
 <main data-page="projects">
     <section class="card">
         <h2>Project Registry</h2>
-        <table class="data-table"><thead><tr><th>Id</th><th>Cwd</th><th>Runtime</th><th class="num">Max parallel</th><th>Default mode</th><th>Tasks</th></tr></thead><tbody>
+        <table class="data-table"><thead><tr><th>Id</th><th>Repository</th><th>Runtime</th><th class="num">Max parallel</th><th>Default mode</th><th>Tasks</th></tr></thead><tbody>
         @foreach (var p in projects)
         {
             var rt = runtimes.TryGetValue(p.RuntimeId, out var r) ? r : null;
             var runtime = rt is not null ? rt.Type + (rt.Distribution is not null ? ":" + rt.Distribution : "") : p.RuntimeId;
-            <tr><td>@p.Id</td><td>@p.Cwd</td><td><span class="badge-runtime" data-runtime="@runtime">@runtime</span></td><td class="num">@p.MaxParallel</td><td>@p.DefaultMode</td><td><a href="/Tasks?projectId=@p.Id">View tasks</a></td></tr>
+            var repoUrl = repoUrls.TryGetValue(p.Id, out var u) ? u : null;
+            <tr><td>@p.Id</td><td>@if (repoUrl is not null) { <a href="@repoUrl" target="_blank" rel="noopener noreferrer">@repoUrl</a> } else { @p.Cwd }</td><td><span class="badge-runtime" data-runtime="@runtime">@runtime</span></td><td class="num">@p.MaxParallel</td><td>@p.DefaultMode</td><td><a href="/Tasks?projectId=@p.Id">View tasks</a></td></tr>
         }
         </tbody></table>
     </section>

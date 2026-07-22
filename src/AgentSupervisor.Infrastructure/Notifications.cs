@@ -41,6 +41,8 @@ public static class NotificationText
             string? message = null;
             if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("message", out var messageProperty) && messageProperty.ValueKind == JsonValueKind.String)
                 message = messageProperty.GetString();
+            else if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("last_assistant_message", out var lastAssistantMessageProperty) && lastAssistantMessageProperty.ValueKind == JsonValueKind.String)
+                message = lastAssistantMessageProperty.GetString();
             else if (root.ValueKind == JsonValueKind.Array && root.EnumerateArray().FirstOrDefault() is var first && first.ValueKind == JsonValueKind.Object && first.TryGetProperty("question", out var questionProperty) && questionProperty.ValueKind == JsonValueKind.String)
                 message = questionProperty.GetString();
 
@@ -216,6 +218,13 @@ public sealed class TransientNotificationException : Exception
 
 public sealed class AlertEngine
 {
+    public static long StableStateVersion(string? key)
+    {
+        if (string.IsNullOrEmpty(key)) return 0;
+        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(key));
+        return BitConverter.ToInt64(hash, 0) & long.MaxValue;
+    }
+
     public static readonly IReadOnlyList<AlertRule> DefaultRules = new[]
     {
         new AlertRule("permission-wait", true, "warning", "PermissionRequest", 60, 300, new[] { "windows", "discord", "slack" }),
@@ -235,9 +244,9 @@ public sealed class AlertEngine
         var rule = DefaultRules.FirstOrDefault(x => x.Enabled
             && x.RuleId is not "authentication-failure" and not "background-failed" and not "daemon-unreachable" and not "runtime-unreachable"
             && string.Equals(x.Condition, hook.EventName, StringComparison.OrdinalIgnoreCase));
-        return rule is null ? null : new AlertCandidate(rule.RuleId, rule.Severity, runtimeId, hook.SessionId, stateVersion, JsonSerializer.Serialize(hook.Payload), rule.Channels);
+        return rule is null ? null : new AlertCandidate(rule.RuleId, rule.Severity, runtimeId, hook.SessionId, stateVersion != 0 ? stateVersion : StableStateVersion(hook.SourceEventId), JsonSerializer.Serialize(hook.Payload), rule.Channels);
     }
-    public AlertCandidate? QuestionPending(PendingQuestionRecord question) => new AlertCandidate("question-pending", "warning", question.RuntimeId, question.SessionId, 0, question.QuestionsJson, new[] { "windows", "discord" });
+    public AlertCandidate? QuestionPending(PendingQuestionRecord question) => new AlertCandidate("question-pending", "warning", question.RuntimeId, question.SessionId, StableStateVersion(question.Id), question.QuestionsJson, new[] { "windows", "discord" });
 
     // claude daemon statusのexit 1は通常時の応答であり、異常判定に使えないことがPhase 0で判明したため。
     public AlertCandidate? FromSnapshot(RuntimeSnapshot snapshot, long stateVersion = 0)

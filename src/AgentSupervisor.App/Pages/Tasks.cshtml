@@ -4,7 +4,8 @@
 @{
     ViewData["Title"] = "Tasks";
     var projectId = Request.Query["projectId"].FirstOrDefault();
-    var tasks = TaskStoreService.All();
+    var activeStatuses = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "queued", "running", "retrying" };
+    var tasks = TaskStoreService.All().Where(t => t.Status is not null && activeStatuses.Contains(t.Status)).ToList();
     if (!string.IsNullOrEmpty(projectId)) tasks = tasks.Where(t => t.ProjectId == projectId).ToList();
 }
 <main data-page="tasks">

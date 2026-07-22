@@ -24,3 +24,4 @@ Thumbs.db
 node_modules/
 *.exe
 *.blob
+spikes/QuestionBridgeProbe/python-sidecar/build/

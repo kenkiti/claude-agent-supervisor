@@ -10,12 +10,15 @@ public sealed class SqliteNotificationOutbox : INotificationOutbox
 {
     private readonly string _connectionString;
     private readonly IEnumerable<INotificationChannel> _channels;
+    private readonly Func<string, bool>? _channelEnabled;
     private const int MaxAttempts = 5;
+    private const int TaskCompletedSuppressWindowSeconds = 90;
 
-    public SqliteNotificationOutbox(string connectionString, IEnumerable<INotificationChannel> channels)
+    public SqliteNotificationOutbox(string connectionString, IEnumerable<INotificationChannel> channels, Func<string, bool>? channelEnabled = null)
     {
         _connectionString = connectionString;
         _channels = channels;
+        _channelEnabled = channelEnabled;
     }
 
     // Cooldown: if the same (notification_type, runtime_id, session_id, channel) already has a
@@ -26,8 +29,19 @@ public sealed class SqliteNotificationOutbox : INotificationOutbox
     {
         using var c = new SqliteConnection(_connectionString);
         c.Open();
+        if (candidate.NotificationType == "input-needed")
+        {
+            using var suppressionCmd = c.CreateCommand();
+            suppressionCmd.CommandText = "SELECT COUNT(*) FROM notification_outbox WHERE notification_type='task-completed' AND runtime_id=$runtime AND (session_id=$session OR (session_id IS NULL AND $session IS NULL)) AND created_at > $since";
+            suppressionCmd.Parameters.AddWithValue("$runtime", candidate.RuntimeId);
+            suppressionCmd.Parameters.AddWithValue("$session", (object?)candidate.SessionId ?? DBNull.Value);
+            suppressionCmd.Parameters.AddWithValue("$since", DateTimeOffset.UtcNow.AddSeconds(-TaskCompletedSuppressWindowSeconds).ToString("O"));
+            var hasRecentTaskCompleted = Convert.ToInt64(suppressionCmd.ExecuteScalar()) > 0;
+            if (hasRecentTaskCompleted) return;
+        }
         foreach (var channelId in candidate.Channels)
         {
+            if (_channelEnabled is not null && !_channelEnabled(channelId)) continue;
             using (var cooldownCmd = c.CreateCommand())
             {
                 cooldownCmd.CommandText = "SELECT COUNT(*) FROM notification_outbox WHERE notification_type=$type AND runtime_id=$runtime AND (session_id=$session OR (session_id IS NULL AND $session IS NULL)) AND channel_id=$channel AND created_at > $since";

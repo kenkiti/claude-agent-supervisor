@@ -83,8 +83,11 @@ public sealed class Phase5EndpointTests : IClassFixture<WebApplicationFactory<Pr
         var submitResponse = await _client.PostAsJsonAsync("/api/v1/tasks", new { projectId, prompt = "say hi", mode = "batch-print" });
         var created = await submitResponse.Content.ReadFromJsonAsync<TaskRecord>(Json);
 
+        // 10s was marginal on GitHub Actions' shared Windows runners -- this test passed reliably
+        // locally and on some CI runs but timed out on others with status still "queued" (the
+        // TaskQueue background service just hadn't gotten to it yet under runner load variance).
         string? status = null;
-        var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(25);
         while (DateTimeOffset.UtcNow < deadline)
         {
             var detail = await _client.GetFromJsonAsync<JsonElement>($"/api/v1/tasks/{created!.Id}", Json);

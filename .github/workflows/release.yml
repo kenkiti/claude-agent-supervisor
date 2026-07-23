@@ -8,8 +8,8 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
         with: { dotnet-version: '10.0.x' }
       - run: dotnet test AgentSupervisor.slnx --configuration Release
       - name: Install Playwright Chromium
@@ -24,8 +24,8 @@ jobs:
     runs-on: windows-latest
     permissions: { contents: write }
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
         with: { dotnet-version: '10.0.x' }
       - run: dotnet publish src/AgentSupervisor.App/AgentSupervisor.App.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o artifact
       - name: Optional Authenticode signing hook

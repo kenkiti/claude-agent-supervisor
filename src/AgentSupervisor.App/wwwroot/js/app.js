@@ -173,27 +173,5 @@
             });
             updateSaveState();
         });
-        const exitOnAuthFailureToggle = document.getElementById('exit-on-auth-failure-toggle');
-        if (exitOnAuthFailureToggle) {
-            exitOnAuthFailureToggle.addEventListener('click', async () => {
-                const current = exitOnAuthFailureToggle.dataset.enabled === 'true';
-                exitOnAuthFailureToggle.disabled = true;
-                try {
-                    const response = await fetch('/api/v1/settings/exit-on-auth-failure', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ enabled: !current })
-                    });
-                    if (!response.ok) throw new Error('toggle failed');
-                    const enabled = !current;
-                    exitOnAuthFailureToggle.dataset.enabled = enabled ? 'true' : 'false';
-                    exitOnAuthFailureToggle.setAttribute('aria-pressed', enabled ? 'true' : 'false');
-                    exitOnAuthFailureToggle.textContent = '認証失敗時にアプリを自動終了する: ' + (enabled ? 'ON' : 'OFF');
-                } catch {
-                } finally {
-                    exitOnAuthFailureToggle.disabled = false;
-                }
-            });
-        }
     }
 })();

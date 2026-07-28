@@ -7,12 +7,11 @@ public sealed class RuntimePoller : BackgroundService
 {
     private readonly IReadOnlyList<IClaudeRuntime> _runtimes; private readonly SessionSnapshotStore _store;
     private readonly AlertEngine _alertEngine; private readonly INotificationOutbox _outbox;
-    private readonly AppBehaviorSettingsStore _behavior; private readonly AppShutdownCoordinator _shutdown;
     // App (where the SignalR hub lives) subscribes to this to push updates without Infrastructure
     // taking a dependency on ASP.NET Core/SignalR.
     public event Func<string, Task>? SnapshotSaved;
-    public RuntimePoller(IEnumerable<IClaudeRuntime> runtimes, SessionSnapshotStore store, AlertEngine alertEngine, INotificationOutbox outbox, AppBehaviorSettingsStore behavior, AppShutdownCoordinator shutdown)
-    { _runtimes = runtimes.ToArray(); _store = store; _alertEngine = alertEngine; _outbox = outbox; _behavior = behavior; _shutdown = shutdown; }
+    public RuntimePoller(IEnumerable<IClaudeRuntime> runtimes, SessionSnapshotStore store, AlertEngine alertEngine, INotificationOutbox outbox)
+    { _runtimes = runtimes.ToArray(); _store = store; _alertEngine = alertEngine; _outbox = outbox; }
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(10));
@@ -31,13 +30,7 @@ public sealed class RuntimePoller : BackgroundService
                     {
                         var candidate = _alertEngine.FromSnapshot(snapshot);
                         if (candidate is not null)
-                        {
                             _outbox.Enqueue(candidate, _alertEngine.GetCooldownSeconds(candidate.NotificationType));
-                            if (candidate.NotificationType == "authentication-failure" && _behavior.ExitOnAuthFailure)
-                            {
-                                _shutdown.RequestExit();
-                            }
-                        }
                     }
                     catch { }
                 }

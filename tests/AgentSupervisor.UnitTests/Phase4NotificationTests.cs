@@ -123,7 +123,8 @@ public sealed class Phase4NotificationTests
         var channel = new DiscordWebhookChannel(new HttpClient(handler), () => "https://discord.example/webhook");
         await channel.SendAsync(SampleCandidate());
         Assert.NotNull(handler.LastRequestBody);
-        Assert.Contains("permission-wait", handler.LastRequestBody);
+        using var body = System.Text.Json.JsonDocument.Parse(handler.LastRequestBody);
+        Assert.Contains(NotificationText.Label("permission-wait"), body.RootElement.GetProperty("content").GetString());
     }
 
     [Fact]

@@ -11,6 +11,7 @@ public sealed class AlertStateVersionTests
     public void StableStateVersion_ReturnsZeroForMissingKey()
     {
         Assert.Equal(0, AlertEngine.StableStateVersion(null));
+        Assert.Equal(0, AlertEngine.StableStateVersion(null));
         Assert.Equal(0, AlertEngine.StableStateVersion(""));
     }
 
@@ -47,5 +48,15 @@ public sealed class AlertStateVersionTests
         Assert.NotEqual(0, first!.StateVersion);
         Assert.NotEqual(first.StateVersion, second!.StateVersion);
         Assert.Equal(first.StateVersion, retry!.StateVersion);
+    }
+
+    [Fact]
+    public void QuestionPending_CarriesResolvedProjectName()
+    {
+        var question = new PendingQuestionRecord("question", "windows", "session", "[{\"question\":\"continue?\"}]", "pending", null, DateTimeOffset.UtcNow, null);
+
+        var candidate = new AlertEngine().QuestionPending(question, "my-app");
+
+        Assert.Equal("my-app", candidate!.Project);
     }
 }

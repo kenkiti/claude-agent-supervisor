@@ -22,53 +22,55 @@ public sealed class RuntimePollerAuthExitTests
         public string GetStderrExcerpt(string jobId) => "";
     }
 
-    private sealed class NoopOutbox : INotificationOutbox
+    private sealed class RecordingOutbox : INotificationOutbox
     {
-        public void Enqueue(AlertCandidate candidate, int cooldownSeconds) { }
+        private readonly object _lock = new();
+        private readonly List<AlertCandidate> _candidates = new();
+        public IReadOnlyList<AlertCandidate> Candidates
+        {
+            get { lock (_lock) return _candidates.ToArray(); }
+        }
+
+        public void Enqueue(AlertCandidate candidate, int cooldownSeconds)
+        {
+            lock (_lock) _candidates.Add(candidate);
+        }
+
         public Task DeliverPendingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
-    private static (SessionSnapshotStore sessions, AppBehaviorSettingsStore behavior) CreateStores()
+    private static (SessionSnapshotStore sessions, string databasePath) CreateStores()
     {
-        var file = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".db");
-        var connectionString = "Data Source=" + file;
+        var databasePath = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".db");
+        var connectionString = "Data Source=" + databasePath;
         new SqliteMigrationRunner().Migrate(connectionString);
-        return (new SessionSnapshotStore(connectionString), new AppBehaviorSettingsStore(connectionString));
+        return (new SessionSnapshotStore(connectionString), databasePath);
     }
 
     [Fact]
-    public async Task ExitOnAuthFailure_true_requests_exit_on_auth_failure_snapshot()
+    public async Task AuthenticationFailureSnapshot_EnqueuesNotificationWithoutRequestingExit()
     {
-        var (sessions, behavior) = CreateStores();
-        behavior.SetExitOnAuthFailure(true);
-        var runtime = new StubAuthRuntime { RuntimeId = "windows", AuthResult = new("auth", 1, "", "not logged in") };
-        var shutdown = new AppShutdownCoordinator();
-        var exitCount = 0;
-        shutdown.ExitAction = () => Interlocked.Increment(ref exitCount);
-        var poller = new RuntimePoller(new[] { runtime }, sessions, new AlertEngine(), new NoopOutbox(), behavior, shutdown);
+        var (sessions, databasePath) = CreateStores();
+        try
+        {
+            var runtime = new StubAuthRuntime { RuntimeId = "windows", AuthResult = new("auth", 1, "", "not logged in") };
+            var outbox = new RecordingOutbox();
+            var shutdown = new AppShutdownCoordinator();
+            var exitCount = 0;
+            shutdown.ExitAction = () => Interlocked.Increment(ref exitCount);
+            var poller = new RuntimePoller(new[] { runtime }, sessions, new AlertEngine(), outbox);
 
-        await poller.StartAsync(CancellationToken.None);
-        await Task.Delay(500);
-        await poller.StopAsync(CancellationToken.None);
+            await poller.StartAsync(CancellationToken.None);
+            await Task.Delay(500);
+            await poller.StopAsync(CancellationToken.None);
 
-        Assert.Equal(1, exitCount);
-    }
-
-    [Fact]
-    public async Task ExitOnAuthFailure_false_never_requests_exit()
-    {
-        var (sessions, behavior) = CreateStores();
-        behavior.SetExitOnAuthFailure(false);
-        var runtime = new StubAuthRuntime { RuntimeId = "windows", AuthResult = new("auth", 1, "", "not logged in") };
-        var shutdown = new AppShutdownCoordinator();
-        var exitCount = 0;
-        shutdown.ExitAction = () => Interlocked.Increment(ref exitCount);
-        var poller = new RuntimePoller(new[] { runtime }, sessions, new AlertEngine(), new NoopOutbox(), behavior, shutdown);
-
-        await poller.StartAsync(CancellationToken.None);
-        await Task.Delay(500);
-        await poller.StopAsync(CancellationToken.None);
-
-        Assert.Equal(0, exitCount);
+            Assert.Contains(outbox.Candidates, candidate => candidate.NotificationType == "authentication-failure");
+            Assert.Equal(0, exitCount);
+        }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            if (File.Exists(databasePath)) File.Delete(databasePath);
+        }
     }
 }

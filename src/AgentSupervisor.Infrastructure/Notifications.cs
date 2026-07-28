@@ -59,8 +59,8 @@ public static class NotificationText
     public static string Compose(AlertCandidate candidate)
     {
         var label = Label(candidate.NotificationType);
-        var ruleId = label == candidate.NotificationType ? "" : " (" + candidate.NotificationType + ")";
-        var result = "[" + candidate.Severity + "] " + label + ruleId;
+        var project = string.IsNullOrWhiteSpace(candidate.Project) ? "" : "[" + candidate.Project.Trim() + "] ";
+        var result = project + "[" + candidate.Severity + "] " + label;
         var message = ExtractMessage(candidate);
         return message is null ? result : result + Environment.NewLine + message;
     }
@@ -194,8 +194,7 @@ public sealed class WindowsBalloonChannel : INotificationChannel
     public Task SendAsync(AlertCandidate candidate, CancellationToken cancellationToken = default)
     {
         var title = NotificationText.Label(candidate.NotificationType);
-        var message = NotificationText.ExtractMessage(candidate);
-        var bodyText = message ?? " ";
+        var bodyText = NotificationText.Compose(candidate);
         if (!NotifyIconBalloon.TryShow(_icon, title, bodyText))
         {
             var icon = candidate.Severity.Equals("error", StringComparison.OrdinalIgnoreCase)
@@ -246,7 +245,7 @@ public sealed class AlertEngine
             && string.Equals(x.Condition, hook.EventName, StringComparison.OrdinalIgnoreCase));
         return rule is null ? null : new AlertCandidate(rule.RuleId, rule.Severity, runtimeId, hook.SessionId, stateVersion != 0 ? stateVersion : StableStateVersion(hook.SourceEventId), JsonSerializer.Serialize(hook.Payload), rule.Channels);
     }
-    public AlertCandidate? QuestionPending(PendingQuestionRecord question) => new AlertCandidate("question-pending", "warning", question.RuntimeId, question.SessionId, StableStateVersion(question.Id), question.QuestionsJson, new[] { "windows", "discord" });
+    public AlertCandidate? QuestionPending(PendingQuestionRecord question, string? project = null) => new AlertCandidate("question-pending", "warning", question.RuntimeId, question.SessionId, StableStateVersion(question.Id), question.QuestionsJson, new[] { "windows", "discord" }, project);
 
     // claude daemon statusのexit 1は通常時の応答であり、異常判定に使えないことがPhase 0で判明したため。
     public AlertCandidate? FromSnapshot(RuntimeSnapshot snapshot, long stateVersion = 0)

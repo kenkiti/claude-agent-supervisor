@@ -84,7 +84,6 @@ Webhook URLはWindowsのDPAPI（このWindowsアカウントでのみ復号可�
    - `%LOCALAPPDATA%\AgentSupervisor\`配下への本体配置
    - WindowsとWSLのClaude Code検出
    - 監視用Hookのインストール（`~/.claude/settings.json`への安全なマージ。既存設定は壊しません）
-   - Windowsログオン時の自動起動登録（任意）
 3. 起動後は通知領域（タスクトレイ）に常駐します。この時点で通知は有効です。
 4. 二重起動はできません。既に起動している場合は、既存のウィンドウにフォーカスが移ります。
 
@@ -135,9 +134,9 @@ curl -X POST http://127.0.0.1:8700/api/v1/tasks -H "Content-Type: application/js
 
 ```text
 AgentSupervisor.exe                 通常起動（通知 + 常駐 + ダッシュボード）
-AgentSupervisor.exe install         監視用Hook・自動起動を(再)インストール
+AgentSupervisor.exe install         監視用Hookをインストール
 AgentSupervisor.exe install --dry-run   実際には書き込まず、変更内容だけ確認
-AgentSupervisor.exe uninstall       Hook・自動起動をすべて削除
+AgentSupervisor.exe uninstall       Hookと既存の自動起動登録を削除
 AgentSupervisor.exe update <exeのパス>  差し替え用exeで自己更新(失敗時は自動ロールバック)
 AgentSupervisor.exe restore-db <バックアップファイル>  DBを指定バックアップへ復元
 ```
@@ -161,7 +160,6 @@ AgentSupervisor.exe uninstall
 - **通知が届かない**: タスクトレイにアイコンが出ているか（常駐しているか）を確認してください。Slack/Discordへ届かない場合は、Settings画面のテスト送信で疎通を確認できます。
 - **通知領域にアイコンが出ない/起動しない**: 既に別のインスタンスが起動していないか確認してください（二重起動は自動的に既存ウィンドウへフォーカスするだけで、新しいプロセスは終了します）。
 - **WSL側のセッションが監視されない**: `AGENTSUPERVISOR_WSL_DISTRO`が実際のディストロ名と一致しているか確認してください（`wsl -l -v`で確認）。WSL側にもClaude Codeがインストール・ログイン済みである必要があります。
-- **Task Schedulerへの自動起動登録が失敗する**: 一部のWindows環境（ポリシーで`schtasks`が制限されている等）では、通常のユーザー権限のまま自動起動を登録できないことがあります。この場合、`install`コマンドは失敗を`stderr`へ表示します。手動での自動起動登録、または管理者に権限設定を確認してください。
 - **`AskUserQuestion`に回答したのに反映されない**: 元のセッションが`claude --bg`のバックグラウンドセッションであることを確認してください。反映は最大でも数秒ですが、25分経過するとタイムアウトし、`claude attach <id>`での手動対応が必要になります。
 
 ---

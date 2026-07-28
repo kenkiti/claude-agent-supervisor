@@ -28,6 +28,12 @@ public sealed class Phase5UnitTests
         public string GetStderrExcerpt(string jobId) => "";
     }
 
+    private sealed class StubProcessRunner : IProcessRunner
+    {
+        public Task<RuntimeProbeResult> RunAsync(string fileName, IReadOnlyList<string> args, CancellationToken cancellationToken = default, string? cwd = null) =>
+            Task.FromResult(new RuntimeProbeResult(fileName, 1, "", "not a repository"));
+    }
+
     // --- TaskQueue guard logic (pure functions) ---
 
     [Fact]
@@ -202,7 +208,7 @@ public sealed class Phase5UnitTests
             projectStore.AddRuntime(new RuntimeRecord("windows", "windows", null, "claude"));
             projectStore.AddProject(new ProjectRecord("sample-project", "windows", @"C:\work\sample-project", 1, "batch-print"));
             var runtime = new StubClaudeRuntime { RuntimeId = "windows", ExitCodeToReturn = 0 };
-            var queue = new TaskQueue(taskStore, projectStore, sessionStore, new IClaudeRuntime[] { runtime });
+            var queue = new TaskQueue(taskStore, projectStore, sessionStore, new IClaudeRuntime[] { runtime }, new ProjectNameResolver(new GitRemoteUrlResolver(new StubProcessRunner()), projectStore));
 
             var task = taskStore.Add("sample-project", "check prices", "batch-print", 10, 1m, 5);
             await queue.StartAsync(CancellationToken.None);
@@ -243,7 +249,7 @@ public sealed class Phase5UnitTests
             var task2 = taskStore.Add("sample-project", "check prices again", "batch-print", 10, 1m, 5);
 
             var runtime = new StubClaudeRuntime { RuntimeId = "windows", ExitCodeToReturn = 0 };
-            var queue = new TaskQueue(taskStore, projectStore, sessionStore, new IClaudeRuntime[] { runtime });
+            var queue = new TaskQueue(taskStore, projectStore, sessionStore, new IClaudeRuntime[] { runtime }, new ProjectNameResolver(new GitRemoteUrlResolver(new StubProcessRunner()), projectStore));
 
             await queue.StartAsync(CancellationToken.None);
             try

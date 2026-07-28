@@ -55,7 +55,7 @@ public sealed class SqliteNotificationOutbox : INotificationOutbox
             }
 
             using var insert = c.CreateCommand();
-            insert.CommandText = "INSERT OR IGNORE INTO notification_outbox(notification_type,severity,runtime_id,session_id,state_version,channel_id,payload_json,created_at,next_attempt_at,attempt_count,status) VALUES($type,$severity,$runtime,$session,$version,$channel,$payload,$now,$now,0,'pending')";
+            insert.CommandText = "INSERT OR IGNORE INTO notification_outbox(notification_type,severity,runtime_id,session_id,state_version,channel_id,payload_json,project,created_at,next_attempt_at,attempt_count,status) VALUES($type,$severity,$runtime,$session,$version,$channel,$payload,$project,$now,$now,0,'pending')";
             insert.Parameters.AddWithValue("$type", candidate.NotificationType);
             insert.Parameters.AddWithValue("$severity", candidate.Severity);
             insert.Parameters.AddWithValue("$runtime", candidate.RuntimeId);
@@ -63,6 +63,7 @@ public sealed class SqliteNotificationOutbox : INotificationOutbox
             insert.Parameters.AddWithValue("$version", candidate.StateVersion);
             insert.Parameters.AddWithValue("$channel", channelId);
             insert.Parameters.AddWithValue("$payload", candidate.PayloadJson);
+            insert.Parameters.AddWithValue("$project", (object?)candidate.Project ?? DBNull.Value);
             insert.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToString("O"));
             insert.ExecuteNonQuery();
         }
@@ -77,7 +78,7 @@ public sealed class SqliteNotificationOutbox : INotificationOutbox
         {
             var channel = _channels.FirstOrDefault(x => x.Id == row.ChannelId);
             if (channel is null) { MarkFailed(row.Id, row.AttemptCount, null, "no channel registered for id '" + row.ChannelId + "'"); continue; }
-            var candidate = new AlertCandidate(row.NotificationType, row.Severity, row.RuntimeId, row.SessionId, row.StateVersion, row.PayloadJson, new[] { row.ChannelId });
+            var candidate = new AlertCandidate(row.NotificationType, row.Severity, row.RuntimeId, row.SessionId, row.StateVersion, row.PayloadJson, new[] { row.ChannelId }, row.Project);
             try
             {
                 await channel.SendAsync(candidate, cancellationToken);
@@ -97,19 +98,19 @@ public sealed class SqliteNotificationOutbox : INotificationOutbox
         }
     }
 
-    private sealed record OutboxRow(long Id, string NotificationType, string Severity, string RuntimeId, string? SessionId, long StateVersion, string ChannelId, string PayloadJson, int AttemptCount);
+    private sealed record OutboxRow(long Id, string NotificationType, string Severity, string RuntimeId, string? SessionId, long StateVersion, string ChannelId, string PayloadJson, string? Project, int AttemptCount);
 
     private List<OutboxRow> ReadDue()
     {
         using var c = new SqliteConnection(_connectionString);
         c.Open();
         using var cmd = c.CreateCommand();
-        cmd.CommandText = "SELECT id,notification_type,severity,runtime_id,session_id,state_version,channel_id,payload_json,attempt_count FROM notification_outbox WHERE status='pending' AND next_attempt_at<=$now ORDER BY created_at";
+        cmd.CommandText = "SELECT id,notification_type,severity,runtime_id,session_id,state_version,channel_id,payload_json,project,attempt_count FROM notification_outbox WHERE status='pending' AND next_attempt_at<=$now ORDER BY created_at";
         cmd.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToString("O"));
         var rows = new List<OutboxRow>();
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
-            rows.Add(new(reader.GetInt64(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetString(4), reader.GetInt64(5), reader.GetString(6), reader.GetString(7), reader.GetInt32(8)));
+            rows.Add(new(reader.GetInt64(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetString(4), reader.GetInt64(5), reader.GetString(6), reader.GetString(7), reader.IsDBNull(8) ? null : reader.GetString(8), reader.GetInt32(9)));
         c.Close();
         SqliteConnection.ClearPool(c);
         return rows;

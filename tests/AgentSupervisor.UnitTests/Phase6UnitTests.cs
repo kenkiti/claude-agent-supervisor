@@ -80,7 +80,13 @@ public sealed class Phase6UnitTests
         public SessionSnapshotStore Sessions { get; }
         public string? CurrentTaskId { get; set; }
         public void Execute(string sql) { using var connection = new SqliteConnection("Data Source=" + _file); connection.Open(); using var command = connection.CreateCommand(); command.CommandText = sql; command.ExecuteNonQuery(); }
-        public TaskQueue CreateQueue(StubClaudeRuntime runtime, TimeSpan delay) => new(Tasks, Projects, Sessions, new IClaudeRuntime[] { runtime }, backoffOverride: delay);
+        public TaskQueue CreateQueue(StubClaudeRuntime runtime, TimeSpan delay) => new(Tasks, Projects, Sessions, new IClaudeRuntime[] { runtime }, new ProjectNameResolver(new GitRemoteUrlResolver(new StubProcessRunner()), Projects), backoffOverride: delay);
+
+        private sealed class StubProcessRunner : IProcessRunner
+        {
+            public Task<RuntimeProbeResult> RunAsync(string fileName, IReadOnlyList<string> args, CancellationToken cancellationToken = default, string? cwd = null) =>
+                Task.FromResult(new RuntimeProbeResult(fileName, 1, "", "not a repository"));
+        }
         public async Task<TaskRecord> WaitForTerminal(string id) { var end = DateTimeOffset.UtcNow.AddSeconds(5); while (DateTimeOffset.UtcNow < end) { var task = Tasks.Get(id)!; if (task.Status is "failed" or "exhausted" or "manual" or "succeeded") return task; await Task.Delay(10); } throw new TimeoutException(); }
         public void Dispose() { SqliteConnection.ClearAllPools(); if (File.Exists(_file)) File.Delete(_file); }
     }

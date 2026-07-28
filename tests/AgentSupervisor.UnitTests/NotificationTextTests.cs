@@ -72,8 +72,27 @@ public sealed class NotificationTextTests
 
         Assert.Contains("[info]", result);
         Assert.Contains("タスクが完了しました", result);
-        Assert.Contains("(task-completed)", result);
         Assert.Contains(Environment.NewLine + "done", result);
+    }
+
+    [Fact]
+    public void Compose_PrefixesProjectNameBeforeSeverity()
+    {
+        var candidate = new AlertCandidate("task-completed", "info", "runtime", null, 0, "{}", new[] { "windows" }, "demo-project");
+
+        var result = NotificationText.Compose(candidate);
+
+        Assert.Equal("[demo-project] [info] タスクが完了しました", result);
+    }
+
+    [Fact]
+    public void Compose_DoesNotAddProjectPrefixWhenProjectIsNull()
+    {
+        var candidate = new AlertCandidate("task-completed", "info", "runtime", null, 0, "{}", new[] { "windows" });
+
+        var result = NotificationText.Compose(candidate);
+
+        Assert.Equal("[info] タスクが完了しました", result);
     }
 
     [Fact]

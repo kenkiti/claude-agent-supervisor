@@ -12,10 +12,11 @@ public sealed class TaskQueue : BackgroundService
     private readonly IEnumerable<IClaudeRuntime> _runtimes;
     private readonly RecoveryHistoryStore _history;
     private readonly INotificationOutbox? _outbox;
+    private readonly ProjectNameResolver _projectNames;
     private readonly TimeSpan? _backoffOverride;
 
     public TaskQueue(TaskStore tasks, ProjectRegistryStore projects, SessionSnapshotStore sessions, IEnumerable<IClaudeRuntime> runtimes,
-        RecoveryHistoryStore? history = null, INotificationOutbox? outbox = null, TimeSpan? backoffOverride = null)
+        ProjectNameResolver projectNames, RecoveryHistoryStore? history = null, INotificationOutbox? outbox = null, TimeSpan? backoffOverride = null)
     {
         _tasks = tasks;
         _projects = projects;
@@ -23,6 +24,7 @@ public sealed class TaskQueue : BackgroundService
         _runtimes = runtimes;
         _history = history ?? new RecoveryHistoryStore(GetConnection(tasks));
         _outbox = outbox;
+        _projectNames = projectNames;
         _backoffOverride = backoffOverride;
     }
     private static string GetConnection(TaskStore t) => t.ConnectionString;
@@ -54,7 +56,7 @@ public sealed class TaskQueue : BackgroundService
         if (_history.TodayCost() >= _history.DailyBudget())
         {
             _tasks.Status(id, "failed");
-            Notify("daily-budget-exceeded", id);
+            await NotifyAsync("daily-budget-exceeded", id, p.Cwd, p.RuntimeId, ct);
             return;
         }
 
@@ -157,9 +159,15 @@ public sealed class TaskQueue : BackgroundService
             }
 
             _tasks.Status(id, d.Action == "budget-exceeded" ? "failed" : d.Action);
-            Notify(d.Action == "manual" ? "recovery-manual" : "recovery-exhausted", id);
+            await NotifyAsync(d.Action == "manual" ? "recovery-manual" : "recovery-exhausted", id, p.Cwd, p.RuntimeId, ct);
             return;
         }
     }
-    private void Notify(string type, string id) { if (_outbox is null) return; var c = new AlertCandidate(type, "error", "task", id, 0, "{}", new[] { "windows", "discord" }); _outbox.Enqueue(c, 300); }
+    private async Task NotifyAsync(string type, string id, string cwd, string runtimeId, CancellationToken ct)
+    {
+        if (_outbox is null) return;
+        var project = await _projectNames.ResolveAsync(cwd, runtimeId, ct);
+        var candidate = new AlertCandidate(type, "error", "task", id, 0, "{}", new[] { "windows", "discord" }, project);
+        _outbox.Enqueue(candidate, 300);
+    }
 }

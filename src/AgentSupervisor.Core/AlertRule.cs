@@ -16,4 +16,5 @@ public sealed record AlertCandidate(
     string? SessionId,
     long StateVersion,
     string PayloadJson,
-    IReadOnlyList<string> Channels);
+    IReadOnlyList<string> Channels,
+    string? Project = null);

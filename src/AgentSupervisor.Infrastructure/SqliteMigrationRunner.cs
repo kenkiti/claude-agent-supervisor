@@ -44,6 +44,16 @@ CREATE TABLE IF NOT EXISTS pending_questions (id TEXT PRIMARY KEY, runtime_id TE
             cmd.CommandText = Schema;
             cmd.ExecuteNonQuery();
         }
+        using (var inspect = c.CreateCommand())
+        {
+            inspect.CommandText = "SELECT name FROM pragma_table_info('notification_outbox') WHERE name='project'";
+            if (inspect.ExecuteScalar() is null)
+            {
+                using var alter = c.CreateCommand();
+                alter.CommandText = "ALTER TABLE notification_outbox ADD COLUMN project TEXT";
+                alter.ExecuteNonQuery();
+            }
+        }
         c.Close();
         // Microsoft.Data.Sqlite pools native connections by default, which keeps
         // the file handle open after Dispose() and breaks immediate delete/move
